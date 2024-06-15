@@ -1,0 +1,320 @@
+<!-- conclusion version-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bella - Search and Chat</title>
+    <style>
+        /* Basic reset and styles for body and html */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background-color: #D0F0C0;
+        }
+
+        /* Flex container to hold search and chat sections */
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Styling for the search results area */
+        .search-results {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Styling for the search input and button */
+        #search-bar {
+            display: flex;
+            justify-content: space-between;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        /* Style for the search input field */
+        #search-input {
+            flex-grow: 1;
+            margin-right: 10px;
+            padding: 10px;
+            border: 1px solid white;
+            border-radius: 5px;
+        }
+        /* Style for the search button */
+        #search-button {
+            padding: 10px 20px;
+            background-color: white;
+            color: black;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* Styling for the chat interface */
+        .chat-interface {
+            flex: 0.9;
+            overflow: auto;
+            padding: 20px;
+            border-left: 2px solid white;
+        }
+
+        /* Input and output area for chat */
+        #chat-input {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        /* Chat output area styling */
+        #chat-output {
+            height: 350px;
+            overflow-y: auto;
+            background-color: white;
+            padding: 10px;
+            font-family: monospace; /* Ensures consistent font for code */
+        }
+        /* Style for the send button in the chat interface */
+        #send-btn {
+            padding: 10px 10px;
+            background-color: white;
+            color: black;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* Styling for code snippets in chat messages */
+        pre {
+            background-color: white;
+            border-radius: 5px;
+            overflow-x: auto; 
+            padding: 10px;
+            white-space: pre-wrap; 
+            word-break: break-word;
+        }
+
+        /* Additional color styling for responses */
+        responses {
+            color: rgb(37, 117, 149);
+        }
+
+        /* Ensure chat messages are properly margined */
+        .chat-message {
+            margin-left: 20px;
+        }
+
+        /*Desing for history butten*/
+        #show-history-btn {
+            display: block; 
+            width: 15%; 
+            padding: 10px;
+            background-color: gray; 
+            color: black;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            
+        }
+
+        
+    </style>
+<!--
+    The HTML layout includes two sections: "search-results", 
+    and "chat-interface" with history box. A "status-message" 
+    displays feedback at the bottom, those support interactive searching and chatting on a unified platform.
+-->
+</head>
+<body>
+    <div class="container">
+        <div class="search-results">
+            <div id="search-bar">
+                <input type="text" id="search-input" placeholder="Search for Bella...">
+                <button id="search-button" onclick="executeSearch()">Search</button>
+            </div>
+            <div id="results-container">
+            </div>
+        </div>
+        <div class="chat-interface">
+            <textarea id="chat-input" placeholder="Ask to ChatGPT..."></textarea>
+            <button id="send-btn">Send</button>
+            <div id="chat-output"></div>
+            <button id="show-history-btn">Query History</button>
+        </div>
+        
+    </div>
+    <div id="status-message"></div>
+
+    <script>
+        /* Initialization on document load */
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const searchTerm = urlParams.get('query');
+            const searchInput = document.getElementById('search-input');
+            const searchButton = document.getElementById('search-button');
+            const sendButton = document.getElementById('send-btn');
+            const chatInput = document.getElementById('chat-input');
+            const chatOutput = document.getElementById('chat-output');
+            const statusMessage = document.getElementById('status-message');
+
+            /* Pre-populate search input if URL contains search term */
+            if (searchTerm) {
+                searchInput.value = searchTerm;
+                executeSearch();
+            }
+
+            /* Event listeners for UI elements */
+            searchButton.addEventListener('click', executeSearch);
+            searchInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    executeSearch();
+                }
+            });
+            sendButton.addEventListener('click', sendChat);
+
+            /* Function to handle search execution */
+            function executeSearch() {
+                const searchTerm = searchInput.value.trim();
+                if (!searchTerm) {
+                    alert('Please enter a search term.');
+                    return;
+                }
+                statusMessage.textContent = 'Searching and asking ChatGPT...';
+                fetchSearchResults(searchTerm);
+                sendChatBasedOnSearch(searchTerm);
+            }
+
+            /* Function to handle ChatGPT based on search */
+            function sendChatBasedOnSearch(searchTerm) {
+                appendMessage('User', searchTerm, false);
+                fetch('http://127.0.0.1:5000/explain', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt: searchTerm })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    appendMessage('ChatGPT', data.message, true);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    appendMessage('ChatGPT', 'Failed to get response.', false);
+                });
+            }
+
+            /* Fetch search results from a server */
+            function fetchSearchResults(searchTerm) {
+                fetch(`http://127.0.0.1:5000/search?query=${encodeURIComponent(searchTerm)}`)
+                    .then(handleResponse)
+                    .then(data => {
+                        statusMessage.textContent = '';
+                        displayResults(data);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching search results:', error);
+                        statusMessage.textContent = 'Error fetching search results.';
+                    });
+            }
+
+            /* Handle HTTP responses */
+            function handleResponse(response) {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            }
+
+            /* Display search results */
+            function displayResults(data) {
+                const resultsContainer = document.getElementById('results-container');
+                resultsContainer.innerHTML = '';
+                if (data.items) {
+                    data.items.forEach(item => {
+                        const resultItem = document.createElement('div');
+                        resultItem.innerHTML = `<h2><a href="${item.link}" target="_blank">${item.title}</a></h2><p>${item.snippet}</p>`;
+                        resultsContainer.appendChild(resultItem);
+                    });
+                } else {
+                    resultsContainer.innerHTML = '<p>No results found.</p>';
+                }
+            }
+
+            /* Handle chat message sending */
+            function sendChat() {
+                const message = chatInput.value.trim();
+                if (!message) {
+                    alert('Please enter a message to send.');
+                    return;
+                }
+                appendMessage('User', message, false);
+                chatInput.value = '';
+                statusMessage.textContent = 'Sending message...';
+
+                fetch('http://127.0.0.1:5000/explain', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt: message })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    appendMessage('ChatGPT', data.message, true);
+                    statusMessage.textContent = '';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    appendMessage('ChatGPT', 'Failed to get response.', false);
+                    statusMessage.textContent = '';
+                });
+            }
+
+            /* Function to append messages to the chat output */
+            function appendMessage(sender, message, isCode) {
+                const messageElement = document.createElement('div');
+                messageElement.className = 'chat-message';
+                messageElement.innerHTML = `<strong>${sender}:</strong>`;
+                const textContent = document.createElement('div');
+                if (isCode) {
+                    textContent.innerHTML = `<pre><responses>${message}</responses></pre>`;
+                } else {
+                    textContent.textContent = message;
+                }
+                messageElement.appendChild(textContent);
+                chatOutput.appendChild(messageElement);
+            }
+            /* Function to show query history*/
+            document.getElementById('show-history-btn').addEventListener('click', function() {
+                fetch('http://127.0.0.1:5000/history')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        const chatOutput = document.getElementById('chat-output');
+                        chatOutput.innerHTML = '<h3>Query History:</h3>';
+                        data.forEach(query => {
+                            const p = document.createElement('p');
+                            p.textContent = query;
+                            chatOutput.appendChild(p);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching history:', error);
+                        document.getElementById('chat-output').innerHTML = 'Failed to fetch history.';
+                    });
+            });
+
+
+        });
+    </script>
+</body>
+</html>
